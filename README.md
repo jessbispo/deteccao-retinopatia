@@ -144,7 +144,7 @@ Imagem de Retina
       │
       ▼
 ┌─────────────────────────────────────────┐
-│           Pré-processamento              │
+│           Pré-processamento             │
 │  1. Remove borda preta (Thresholding)   │
 │  2. Resize com padding (Letterboxing)   │
 │  3. Máscara circular (ROI)              │
@@ -155,15 +155,15 @@ Imagem de Retina
       │
       ▼
 ┌─────────────────────────────────────────┐
-│         ResNet18 (Fine-tuned)            │
-│  conv1 → layer1 → layer2 (congelados)  │
-│  layer3 → layer4 → FC (treináveis)     │
+│         ResNet18 (Fine-tuned)           │
+│  conv1 → layer1 → layer2 (congelados)   │
+│  layer3 → layer4 → FC (treináveis)      │
 │  Saída: logit → sigmoid → probabilidade │
 └─────────────────────────────────────────┘
       │
       ▼
 ┌─────────────────────────────────────────┐
-│              Grad-CAM                    │
+│              Grad-CAM                   │
 │  1. Captura ativações (forward hook)    │
 │  2. Captura gradientes (backward hook)  │
 │  3. GAP dos gradientes → pesos          │
