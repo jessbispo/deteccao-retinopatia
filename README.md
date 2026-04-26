@@ -81,7 +81,17 @@ pip install -r requirements.txt
 
 ### 2. Preparar o dataset
 
-Organize o dataset na estrutura abaixo:
+1. Baixe o dataset [APTOS 2019](https://www.kaggle.com/competitions/aptos2019-blindness-detection) e descompacte-o na pasta `data/raw` (você precisará criar essa pasta).
+
+> Para o APTOS: `diagnosis == 0` → `normal/`, `diagnosis >= 1` → `retinopatia/`
+
+2. Execute o script de preparação para organizar as imagens brutas na estrutura necessária:
+
+```bash
+python src/prepare_data.py --csv_path data/raw/train.csv --image_dir data/raw/train_images --output_dir data/processed --train_split 0.8
+```
+
+3. A estrutura será gerada conforme abaixo:
 
 ```
 
@@ -95,11 +105,6 @@ Organize o dataset na estrutura abaixo:
 │   │       └───retinopatia
 
 ```
-
-**Datasets Utilizado:**
-- [APTOS 2019](https://www.kaggle.com/competitions/aptos2019-blindness-detection) — Kaggle
-
-> Para o APTOS: `diagnosis == 0` → `normal/`, `diagnosis >= 1` → `retinopatia/`
 
 ### 3. Treinar o modelo
 
@@ -123,6 +128,34 @@ streamlit run src/app.py
 ```
 
 > Se não houver `modelo_retina.pth`, a aplicação usa os pesos pré-treinados do ImageNet (sem fine-tuning de retina — resultados não confiáveis clinicamente).
+
+### 5. Gerar Executável (Distribuição)
+
+Você pode compilar o projeto em um único arquivo executável (binário) que inclui o modelo e todas as dependências.
+
+> [!IMPORTANT]
+> O processo de compilação é demorado e pode levar até 15 minutos, pois inclui bibliotecas pesadas como PyTorch e OpenCV.
+
+#### No Linux
+
+1. Dê permissão de execução ao script:
+   ```bash
+   chmod +x packaging/build.sh
+   ```
+2. Execute o build:
+   ```bash
+   ./packaging/build.sh
+   ```
+3. O binário será gerado em `packaging/dist/deteccao-retinopatia`.
+
+#### No Windows
+
+1. Abra o PowerShell na pasta raiz do projeto.
+2. Execute o script de build:
+   ```powershell
+   .\packaging\build.ps1
+   ```
+3. O executável será gerado em `packaging\dist\deteccao-retinopatia.exe`.
 
 ---
 
