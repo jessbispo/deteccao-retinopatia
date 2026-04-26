@@ -5,3 +5,6 @@ models/
 *.git
 .venv/
 __pycache__/
+modelo_retina.pth
+build/
+dist/
