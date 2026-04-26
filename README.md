@@ -131,6 +131,9 @@ streamlit run src/app.py
 
 ### 5. Gerar Executável (Distribuição)
 
+> [!NOTE]
+> O suporte a geração do executável foi adicionado seguindo as intruções desta [discussão](https://discuss.streamlit.io/t/using-pyinstaller-or-similar-to-create-an-executable/902/127) no fórum da Streamlit.
+
 Você pode compilar o projeto em um único arquivo executável (binário) que inclui o modelo e todas as dependências.
 
 > [!IMPORTANT]
