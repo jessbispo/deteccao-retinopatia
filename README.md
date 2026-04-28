@@ -134,6 +134,7 @@ clinicamente pois o modelo nao foi ajustado para retina.
 ## Fluxo do Sistema
 
 ```
+<<<<<<< HEAD
 Imagem de Retina (fundoscopia)
          |
          v
@@ -167,6 +168,41 @@ Imagem de Retina (fundoscopia)
          |
          v
   Classificacao + Heatmap sobreposto
+=======
+Imagem de Retina
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│           Pré-processamento             │
+│  1. Remove borda preta (Thresholding)   │
+│  2. Resize com padding (Letterboxing)   │
+│  3. Máscara circular (ROI)              │
+│  4. CLAHE (contraste adaptativo)        │
+│  5. Gaussian BG Subtraction             │
+│  6. Normalização ImageNet               │
+└─────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│         ResNet18 (Fine-tuned)           │
+│  conv1 → layer1 → layer2 (congelados)   │
+│  layer3 → layer4 → FC (treináveis)      │
+│  Saída: logit → sigmoid → probabilidade │
+└─────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────┐
+│              Grad-CAM                   │
+│  1. Captura ativações (forward hook)    │
+│  2. Captura gradientes (backward hook)  │
+│  3. GAP dos gradientes → pesos          │
+│  4. Combinação linear → CAM (7×7)       │
+│  5. ReLU + Normalização + Upscale       │
+└─────────────────────────────────────────┘
+      │
+      ▼
+  Resultado + Heatmap sobreposto
+>>>>>>> dc053ded5fd174eea47264f30d7e1961fa53f1cf
 ```
 
 ---

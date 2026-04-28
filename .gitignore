@@ -3,3 +3,5 @@ models/
 *.zip
 *.pt
 *.git
+.venv/
+__pycache__/
