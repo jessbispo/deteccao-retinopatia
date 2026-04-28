@@ -85,9 +85,9 @@ retinopatia-deteccao/
 python3 -m venv .venv;
 source .venv/bin/activate
 ```
-**Baixar as dependências:**
+**Baixar as dependências dentro do ambiente virtual:**
 ```bash
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
 
