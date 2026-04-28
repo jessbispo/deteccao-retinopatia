@@ -80,9 +80,16 @@ retinopatia-deteccao/
 
 ### 1. Instalar dependencias
 
+**Criar ambiente virtual para dependências não ficarem fixas na máquina:**
+```bash
+python3 -m venv .venv;
+source .venv/bin/activate
+```
+**Baixar as dependências:**
 ```bash
 pip install -r requirements.txt
 ```
+
 
 ### 2. Preparar o dataset
 
