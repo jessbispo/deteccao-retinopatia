@@ -1,70 +1,75 @@
-# Classificação de Retinopatia Diabética com Visualização Explicável
+# Classificacao de Retinopatia Diabetica com Visualizacao Explicavel
 
-**Universidade Presbiteriana Mackenzie — Computação Visual**
+**Universidade Presbiteriana Mackenzie - Computacao Visual**
 
-- Bruna Aguiar Muchiuti 
-- Gabriel Ken Kazama Geronazzo 
-- Jessica dos Santos Santana Bispo 
+- Bruna Aguiar Muchiuti
+- Gabriel Ken Kazama Geronazzo
+- Jessica dos Santos Santana Bispo
 - Lucas Pires de Camargo Sarai
 
 ---
 
-## Sobre
+## Sobre o Projeto
 
-Aplicação de visão computacional para classificação binária de retinopatia diabética em imagens de retina (fundoscopia), com visualização explicável via Grad-CAM.
+Aplicacao de visao computacional para classificacao binaria de retinopatia
+diabetica em imagens de retina (fundoscopia), com visualizacao explicavel
+via Grad-CAM.
+
+O diagnostico de retinopatia depende de especialistas analisando imagens
+fundoscopicas, processo demorado e dependente de disponibilidade clinica.
+Este projeto automatiza parte desse processo usando uma CNN pre-treinada
+com fine-tuning no dominio de retina.
 
 ---
 
-## Técnicas de Computação Visual
+## Tecnicas de Computacao Visual
 
-### Pré-processamento (`preprocessing.py`)
+### Pre-processamento (`preprocessing.py`)
 
-| Técnica | Função | Por que usamos |
+| Tecnica | Funcao | Por que usamos |
 |---|---|---|
-| **Thresholding + BBox** | `remove_black_border()` | Remove borda preta circular típica de fundoscopia |
-| **Letterboxing** | `resize_with_padding()` | Redimensiona sem distorção geométrica |
-| **Máscara Circular** | `circular_crop()` | Foca apenas na ROI diagnóstica |
-| **CLAHE** | `clahe_enhancement()` | Realça microaneurismas e exsudatos localmente |
-| **Gaussian BG Subtraction** | `gaussian_preprocessing()` | Remove iluminação não uniforme (Ben Graham's method) |
-| **Canal Verde** | `green_channel_extraction()` | Máximo contraste para vasos sanguíneos |
+| Thresholding + BBox | `remove_black_border` | Remove borda preta circular tipica de fundoscopia |
+| Letterboxing | `resize_with_padding` | Redimensiona sem distorcer estruturas circulares |
+| Mascara Circular | `apply_circular_mask` | Foca o modelo na regiao de interesse diagnostico |
+| CLAHE | `apply_clahe` | Realca microaneurismas e exsudatos localmente |
+| Subtracao Gaussiana | `apply_gaussian_background_subtraction` | Remove iluminacao nao uniforme entre cameras |
+| Canal Verde | `extract_green_channel` | Maximo contraste para vasos sanguineos |
 
 ### Modelo (`model.py`)
-- **ResNet18** pré-treinada no ImageNet com fine-tuning
-- Camadas iniciais congeladas (features genéricas)
-- Camadas finais treináveis (features de retina)
-- Fine-tuning progressivo: descongelamento na metade do treino
+
+- ResNet18 pre-treinada no ImageNet com fine-tuning em duas fases
+- Fase 1: backbone congelado, apenas o classificador e treinado
+- Fase 2 (metade do treino): backbone descongelado com lr reduzido
+- Classificador binario substituindo o FC original do ImageNet
 
 ### Explicabilidade (`gradcam.py`)
-- **Grad-CAM**: calcula gradientes da saída em relação aos feature maps da última camada convolucional
-- Gera heatmap que mostra as regiões determinantes para o diagnóstico
+
+- Grad-CAM (Selvaraju et al., 2017)
+- Calcula gradientes da saida em relacao aos feature maps da ultima camada convolucional
+- Gera heatmap mostrando as regioes determinantes para o diagnostico
 
 ---
 
 ## Estrutura do Projeto
 
 ```
-
-├───data
-│   ├───processed
-│   │   ├───train
-│   │   │   ├───normal
-│   │   │   └───retinopatia
-│   │   └───val
-│   │       ├───normal
-│   │       └───retinopatia
-│   └───raw
-│       ├───test_images
-│       │   └───test_images
-│       ├───train_images
-│       │   └───train_images
-│       └───val_images
-│           └───val_images
-├───src
-│   ├───app.py # Interface Streamlit
-│   ├───model.py # Modelo ResNet18
-│   ├───preprocessing.py # Pipeline de pré-processamento (CV)
-│   ├───gradcam.py  # Visualização Grad-CAM
-│   ├───train.py 
+retinopatia-deteccao/
+├── data/
+│   ├── processed/
+│      ├── train/
+│      │   ├── normal/
+│      │   └── retinopatia/
+│      └── val/
+│          ├── normal/
+│          └── retinopatia/
+│   
+├── src/
+│   ├── app.py              # Interface Streamlit
+│   ├── model.py            # Arquitetura ResNet18 e utilitarios
+│   ├── preprocessing.py    # Pipeline de pre-processamento
+│   ├── gradcam.py          # Visualizacao Grad-CAM
+│   └── train.py            # Script de fine-tuning
+├── modelo_retina.pth       # Pesos salvos (gerado apos o treino)
 ├── requirements.txt
 └── README.md
 ```
@@ -73,7 +78,7 @@ Aplicação de visão computacional para classificação binária de retinopatia
 
 ## Como Executar
 
-### 1. Instalar dependências
+### 1. Instalar dependencias
 
 ```bash
 pip install -r requirements.txt
@@ -81,40 +86,38 @@ pip install -r requirements.txt
 
 ### 2. Preparar o dataset
 
-Organize o dataset na estrutura abaixo:
+O projeto usa o dataset **APTOS 2019** disponivel no Kaggle:
+https://www.kaggle.com/competitions/aptos2019-blindness-detection
+
+Apos baixar, organize as imagens conforme abaixo.
+Imagens com `diagnosis == 0` vao para `normal/`,
+imagens com `diagnosis >= 1` vao para `retinopatia/`.
 
 ```
-
-├───data
-│   ├───processed
-│   │   ├───train
-│   │   │   ├───normal # imagens sem retinopatia (label 0)
-│   │   │   └───retinopatia # imagens com retinopatia (label 1)
-│   │   └───val
-│   │       ├───normal
-│   │       └───retinopatia
-
+data/processed/
+├── train/
+│   ├── normal/
+│   └── retinopatia/
+└── val/
+    ├── normal/
+    └── retinopatia/
 ```
-
-**Datasets Utilizado:**
-- [APTOS 2019](https://www.kaggle.com/competitions/aptos2019-blindness-detection) — Kaggle
-
-> Para o APTOS: `diagnosis == 0` → `normal/`, `diagnosis >= 1` → `retinopatia/`
 
 ### 3. Treinar o modelo
 
 ```bash
-python src/train.py --data_dir ./data/processed --epochs 20 --batch_size 32
+python src/train.py --data_dir ./data/processed --epochs 20 --batch_size 16
 ```
 
-Parâmetros disponíveis:
-```
---data_dir        Diretório do dataset (padrão: ./dataset)
---epochs          Número de épocas (padrão: 20)
---batch_size      Tamanho do batch (padrão: 32)
---lr              Learning rate (padrão: 1e-4)
---save_path       Onde salvar o modelo (padrão: modelo_retina.pth)
-```
+Parametros disponiveis:
+
+| Parametro | Padrao | Descricao |
+|---|---|---|
+| `--data_dir` | `./data/processed` | Diretorio do dataset |
+| `--epochs` | `20` | Numero de epocas |
+| `--batch_size` | `16` | Tamanho do batch |
+| `--lr` | `1e-4` | Learning rate inicial |
+| `--save_path` | `modelo_retina.pth` | Caminho para salvar o modelo |
 
 ### 4. Executar a interface
 
@@ -122,61 +125,65 @@ Parâmetros disponíveis:
 streamlit run src/app.py
 ```
 
-> Se não houver `modelo_retina.pth`, a aplicação usa os pesos pré-treinados do ImageNet (sem fine-tuning de retina — resultados não confiáveis clinicamente).
-
----
-
-## Tecnologias
-
-- **Python 3.10+**
-- **PyTorch** — modelo e treino
-- **torchvision** — ResNet18 pré-treinada
-- **OpenCV** — processamento de imagens (CLAHE, Gaussian, máscaras)
-- **Streamlit** — interface web
-- **NumPy / Matplotlib** — visualizações
+Se `modelo_retina.pth` nao existir, a aplicacao carrega os pesos
+pre-treinados do ImageNet. Nesse caso os resultados nao sao confiaveis
+clinicamente pois o modelo nao foi ajustado para retina.
 
 ---
 
 ## Fluxo do Sistema
 
 ```
-Imagem de Retina
-      │
-      ▼
-┌─────────────────────────────────────────┐
-│           Pré-processamento              │
-│  1. Remove borda preta (Thresholding)   │
-│  2. Resize com padding (Letterboxing)   │
-│  3. Máscara circular (ROI)              │
-│  4. CLAHE (contraste adaptativo)        │
-│  5. Gaussian BG Subtraction             │
-│  6. Normalização ImageNet               │
-└─────────────────────────────────────────┘
-      │
-      ▼
-┌─────────────────────────────────────────┐
-│         ResNet18 (Fine-tuned)            │
-│  conv1 → layer1 → layer2 (congelados)  │
-│  layer3 → layer4 → FC (treináveis)     │
-│  Saída: logit → sigmoid → probabilidade │
-└─────────────────────────────────────────┘
-      │
-      ▼
-┌─────────────────────────────────────────┐
-│              Grad-CAM                    │
-│  1. Captura ativações (forward hook)    │
-│  2. Captura gradientes (backward hook)  │
-│  3. GAP dos gradientes → pesos          │
-│  4. Combinação linear → CAM (7×7)       │
-│  5. ReLU + Normalização + Upscale       │
-└─────────────────────────────────────────┘
-      │
-      ▼
-  Resultado + Heatmap sobreposto
+Imagem de Retina (fundoscopia)
+         |
+         v
++------------------------------------------+
+|            Pre-processamento             |
+|  1. Remove borda preta (Thresholding)    |
+|  2. Resize com padding (Letterboxing)    |
+|  3. Mascara circular (ROI)               |
+|  4. CLAHE (contraste adaptativo)         |
+|  5. Subtracao Gaussiana (fundo)          |
+|  6. Normalizacao ImageNet                |
++------------------------------------------+
+         |
+         v
++------------------------------------------+
+|          ResNet18 (Fine-tuned)           |
+|  conv1, layer1, layer2  (congelados)    |
+|  layer3, layer4, FC     (treinaveis)    |
+|  saida: logit -> sigmoid -> prob [0,1]  |
++------------------------------------------+
+         |
+         v
++------------------------------------------+
+|               Grad-CAM                   |
+|  1. Forward hook -> salva ativacoes      |
+|  2. Backward hook -> salva gradientes    |
+|  3. GAP dos gradientes -> pesos          |
+|  4. Combinacao linear -> CAM (7x7)       |
+|  5. ReLU + normalizacao + upscale        |
++------------------------------------------+
+         |
+         v
+  Classificacao + Heatmap sobreposto
 ```
+
+---
+
+## Tecnologias
+
+| Biblioteca | Uso |
+|---|---|
+| PyTorch | Modelo, treino e Grad-CAM |
+| torchvision | ResNet18 pre-treinada e transforms |
+| OpenCV | CLAHE, filtros gaussianos, mascaras |
+| Streamlit | Interface web |
+| NumPy / Matplotlib | Visualizacoes e manipulacao de arrays |
 
 ---
 
 ## Aviso
 
-Esta aplicação é um projeto acadêmico e **não deve ser utilizada para diagnóstico médico real**. Sempre consulte um especialista qualificado.
+Este projeto e de natureza academica e nao deve ser usado para
+diagnostico medico real. Sempre consulte um especialista qualificado.

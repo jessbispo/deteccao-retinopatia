@@ -1,9 +1,6 @@
 """
 preprocessing.py
-================
-Módulo de pré-processamento de imagens de retina.
-Foco em Computação Visual: cada etapa é uma técnica clássica de processamento
-de imagens aplicada ao domínio médico.
+Tecnicas de processamento de imagens fundoscopicas de retina.
 """
 
 import cv2
@@ -13,329 +10,305 @@ import torch
 from torchvision import transforms
 
 
-# ──────────────────────────────────────────────
-# 1. TÉCNICAS DE PROCESSAMENTO DE IMAGEM (CV)
-# ──────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Tecnicas individuais de processamento
+# ---------------------------------------------------------------------------
 
 def remove_black_border(image: np.ndarray, threshold: int = 10) -> np.ndarray:
     """
-    Remove a borda preta circular típica de imagens de retina (fundoscopia).
-    
-    Técnica: limiarização (thresholding) + bounding box do conteúdo útil.
-    As imagens de retina geralmente têm um fundo preto ao redor do disco óptico,
-    que não contribui para a classificação e pode atrapalhar a normalização.
-    
-    Args:
-        image: imagem BGR (numpy array)
-        threshold: valor mínimo de intensidade para considerar "conteúdo"
-    Returns:
-        imagem recortada sem bordas pretas excessivas
+    Remove a borda preta ao redor da retina.
+
+    Imagens fundoscopicas sao capturadas com iluminacao circular, deixando
+    cantos pretos sem informacao clinica. Remover essa borda evita que o
+    modelo aprenda a partir desse fundo vazio.
+
+    Tecnica: limiarizacao para separar pixels de conteudo dos pretos,
+    seguida de bounding box do conteudo util.
     """
-    # Converte para escala de cinza 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # Limiarização: pixels com valor > threshold são considerados "conteudo"
+
+    # Pixels acima do threshold sao considerados conteudo da retina
     _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-    
-    # Encontra o bounding box do conteúdo útil
+
     coords = cv2.findNonZero(mask)
     if coords is None:
-        return image  # imagem toda preta, retorna original
-    
+        return image
+
     x, y, w, h = cv2.boundingRect(coords)
-    
-    # Garante recorte quadrado centralizado
+
+    # Recorte quadrado centralizado para nao distorcer a proporcao
     size = max(w, h)
     cx, cy = x + w // 2, y + h // 2
     x1 = max(0, cx - size // 2)
     y1 = max(0, cy - size // 2)
     x2 = min(image.shape[1], x1 + size)
     y2 = min(image.shape[0], y1 + size)
-    
+
     return image[y1:y2, x1:x2]
 
 
-def clahe_enhancement(image: np.ndarray, clip_limit: float = 2.0,
-                       tile_grid_size: tuple = (8, 8)) -> np.ndarray:
+def apply_clahe(image: np.ndarray, clip_limit: float = 1.5,
+                tile_grid_size: tuple = (8, 8)) -> np.ndarray:
     """
-    Aplica CLAHE (Contrast Limited Adaptive Histogram Equalization).
-    
-    Técnica fundamental em visão médica: equaliza o histograma de forma local,
-    melhorando o contraste em regiões específicas sem superexpor outras.
-    Especialmente útil para realçar microaneurismas e exsudatos na retina,
-    que são sinais diagnósticos da retinopatia diabética.
-    
-    Diferença do HE simples: o CLAHE opera em tiles (blocos locais) e
-    limita o contraste para evitar amplificação de ruído.
-    
-    Args:
-        image: imagem BGR
-        clip_limit: limite de contraste (2.0 é um bom padrão para retina)
-        tile_grid_size: tamanho dos blocos locais
-    Returns:
-        imagem com contraste melhorado no canal L (espaço LAB)
+    Melhora o contraste local da imagem com CLAHE.
+
+    Imagens fundoscopicas tem iluminacao desigual, dificultando visualizar
+    microaneurismas e exsudatos (lesoes da retinopatia). O CLAHE equaliza
+    o histograma em blocos locais (tiles), realcando essas estruturas sem
+    superexpor regioes ja claras.
+
+    Aplicado no canal L do espaco LAB para atuar somente na luminancia
+    e preservar as cores originais.
     """
-    # Converte BGR → LAB para aplicar CLAHE apenas na luminancia (L)
-    # Isso preserva as cores originais e evita distorções cromáticas
+    # Converte para LAB: L = luminancia, A/B = componentes de cor
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
     l_channel, a_channel, b_channel = cv2.split(lab)
-    
-    # Aplica CLAHE no canal de luminancia
+
+    # clip_limit controla o quanto o contraste pode ser amplificado por tile
     clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
     l_enhanced = clahe.apply(l_channel)
-    
-    # Reconstroi a imagem LAB com o L melhorado
+
     lab_enhanced = cv2.merge([l_enhanced, a_channel, b_channel])
-    
-    # Converte de volta para BGR
     return cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2BGR)
 
 
-def green_channel_extraction(image: np.ndarray) -> np.ndarray:
+def apply_gaussian_background_subtraction(image: np.ndarray, sigma: float = 30,
+                                           strength: float = 0.3) -> np.ndarray:
     """
-    Extrai e realça o canal verde da imagem de retina.
-    
-    Técnica específica de domínio: o canal verde (G) das imagens de fundoscopia
-    apresenta o maior contraste para estruturas vasculares da retina.
-    Isso ocorre porque a hemoglobina absorve fortemente no verde, tornando
-    os vasos sanguíneos muito mais visíveis nesse canal.
-    
-    Retorna imagem BGR onde os 3 canais são o canal verde original,
-    para manter compatibilidade com redes pré-treinadas em RGB.
-    
-    Args:
-        image: imagem BGR
-    Returns:
-        imagem BGR com os 3 canais substituídos pelo canal verde
-    """
-    green = image[:, :, 1]  # Canal G no espaço BGR
-    # Empilha 3x para manter formato (H, W, 3)
-    return cv2.merge([green, green, green])
+    Reduz variacoes de iluminacao de baixa frequencia (fundo nao uniforme).
 
+    Cameras diferentes e angulos de captura geram iluminacao inconsistente
+    entre imagens. Este filtro passa-alta estima o fundo via blur gaussiano
+    e o subtrai parcialmente, normalizando o brilho e destacando detalhes
+    finos como vasos e lesoes (metodo de Ben Graham, Kaggle APTOS 2019).
 
-def gaussian_preprocessing(image: np.ndarray, sigma: float = 10) -> np.ndarray:
+    O parametro strength controla a intensidade: valores altos podem gerar
+    artefatos em imagens com iluminacao muito variada.
     """
-    Técnica de subtração de fundo com filtro Gaussiano (Ben Graham's method).
-    
-    Método popular em competições de detecção de retinopatia (ex: Kaggle APTOS).
-    Remove variações de iluminação de baixa frequência (fundo não uniforme)
-    preservando detalhes de alta frequência (vasos, lesões).
-    
-    Operação: resultado = original * α + blur * β + γ
-    onde blur é a versão suavizada (fundo estimado).
-    
-    Args:
-        image: imagem BGR
-        sigma: desvio padrão do filtro Gaussiano (controla o "tamanho" do fundo)
-    Returns:
-        imagem com fundo normalizado
-    """
-    # Tamanho do kernel (deve ser ímpar)
-    kernel_size = int(sigma * 4) | 1  # força valor ímpar com OR 1
-    
-    # Blur Gaussiano estima o "fundo" (iluminação não uniforme)
+    kernel_size = int(sigma * 2) | 1
+
+    # O blur gaussiano estima o componente de baixa frequencia (o "fundo")
     blurred = cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma)
-    
-    # Subtrai o fundo e adiciona offset de 128 para centralizar
-    # addWeighted: dst = src1*alpha + src2*beta + gamma
-    result = cv2.addWeighted(image, 4, blurred, -4, 128)
-    
+
+    # Subtrai o fundo e centraliza o resultado em torno de 128
+    corrected = cv2.addWeighted(image, 4, blurred, -4, 128)
+    corrected = np.clip(corrected, 0, 255).astype(np.uint8)
+
+    # Blend parcial para evitar artefatos: mistura imagem original com a corrigida
+    result = cv2.addWeighted(image, 1.0 - strength, corrected, strength, 0)
     return result
+
+
+def extract_green_channel(image: np.ndarray) -> np.ndarray:
+    """
+    Isola o canal verde da imagem fundoscopica.
+
+    A hemoglobina nos vasos sanguineos absorve fortemente a luz verde,
+    tornando os vasos muito mais visiveis nesse canal do que no vermelho
+    ou azul. Usado como alternativa ao CLAHE para enfatizar a estrutura
+    vascular da retina.
+
+    Retorna imagem de 3 canais identicos (todos = canal verde) para
+    manter compatibilidade com redes treinadas em RGB.
+    """
+    green = image[:, :, 1]
+    return cv2.merge([green, green, green])
 
 
 def resize_with_padding(image: np.ndarray, target_size: int = 224) -> np.ndarray:
     """
-    Redimensiona a imagem mantendo a proporção, com padding preto se necessário.
-    
-    Técnica: letterboxing — comum em visão computacional para evitar
-    distorção geométrica ao forçar uma proporção fixa. 
-    
-    Args:
-        image: imagem BGR
-        target_size: tamanho alvo (quadrado)
-    Returns:
-        imagem redimensionada para target_size x target_size
+    Redimensiona a imagem para tamanho fixo sem distorcer a proporcao.
+
+    Redes convolucionais exigem entrada de tamanho fixo. Esticar a imagem
+    diretamente distorceria as estruturas circulares da retina. O letterboxing
+    preserva a proporcao adicionando padding preto onde necessario.
     """
     h, w = image.shape[:2]
     scale = target_size / max(h, w)
     new_h, new_w = int(h * scale), int(w * scale)
-    
+
     resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
-    
-    # Cria canvas preto e centraliza a imagem
+
+    # Canvas preto do tamanho alvo; a imagem fica centralizada
     canvas = np.zeros((target_size, target_size, 3), dtype=np.uint8)
     y_off = (target_size - new_h) // 2
     x_off = (target_size - new_w) // 2
     canvas[y_off:y_off + new_h, x_off:x_off + new_w] = resized
-    
+
     return canvas
 
 
-def circular_crop(image: np.ndarray) -> np.ndarray:
+def apply_circular_mask(image: np.ndarray) -> np.ndarray:
     """
-    Aplica uma máscara circular para remover cantos da imagem.
-    
-    As imagens de retina têm formato circular. Os cantos (fora do círculo)
-    são ruído que pode confundir o modelo. Aplicar uma máscara circular
-    foca o modelo apenas na região de interesse diagnóstico.
-    
-    Técnica: criação de máscara binária circular + multiplicação elemento a elemento.
-    
-    Args:
-        image: imagem quadrada (H == W)
-    Returns:
-        imagem com cantos zerados (preto)
+    Zera os pixels fora da regiao circular da retina.
+
+    Apos o resize com padding, os cantos sao pretos mas ainda existem como
+    pixels no tensor. A mascara circular garante que o modelo processe apenas
+    a area de interesse diagnostico, evitando que aprenda com os cantos vazios.
+
+    Tecnica: mascara binaria circular aplicada via AND bit a bit.
     """
     h, w = image.shape[:2]
     center = (w // 2, h // 2)
-    radius = min(center) - 5  # pequena margem
-    
-    # Cria máscara circular branca sobre fundo preto
+    radius = min(center) - 5
+
     mask = np.zeros((h, w), dtype=np.uint8)
-    cv2.circle(mask, center, radius, 255, -1)  # -1 = preenchido
-    
-    # Aplica a máscara nos 3 canais
+    cv2.circle(mask, center, radius, 255, -1)
+
     mask_3ch = cv2.merge([mask, mask, mask])
     return cv2.bitwise_and(image, mask_3ch)
 
 
-# ──────────────────────────────────────────────
-# 2. PIPELINE COMPLETO DE PRÉ-PROCESSAMENTO
-# ──────────────────────────────────────────────
+def fill_background_with_mean(image: np.ndarray) -> np.ndarray:
+    """
+    Substitui o fundo preto pela cor media da retina.
+
+    Alternativa a mascara preta: preenche os cantos com a cor media dos
+    pixels da retina, reduzindo o contraste abrupto entre fundo e imagem
+    que poderia ser aprendido como artefato pelo modelo.
+    """
+    h, w = image.shape[:2]
+    center = (w // 2, h // 2)
+    radius = min(center) - 5
+
+    mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.circle(mask, center, radius, 255, -1)
+    mask_bool = mask.astype(bool)
+
+    mean_color = image[mask_bool].mean(axis=0)
+
+    result = image.copy()
+    result[~mask_bool] = mean_color
+    return result.astype(np.uint8)
+
+
+# ---------------------------------------------------------------------------
+# Pipeline completo
+# ---------------------------------------------------------------------------
 
 def preprocess_retina_image(
     image_input,
     target_size: int = 224,
     use_clahe: bool = True,
-    use_gaussian: bool = True,
+    use_gaussian: bool = False,
+    gaussian_strength: float = 0.0,
     use_green_channel: bool = False,
     use_circular_mask: bool = True,
     return_stages: bool = False
 ):
     """
-    Pipeline completo de pré-processamento de imagem de retina.
-    
+    Pipeline de pre-processamento para imagens fundoscopicas de retina.
+
     Ordem das etapas:
-    1. Leitura e conversão para BGR (OpenCV)
-    2. Remoção de borda preta
-    3. Redimensionamento com padding
-    4. Máscara circular (opcional)
-    5. CLAHE - melhoria de contraste local (opcional)
-    6. Gaussian background subtraction (opcional)
-    7. Extração canal verde (opcional, alternativo ao CLAHE+Gaussian)
-    8. Normalização e conversão para tensor PyTorch
-    
+      1. Leitura e conversao para BGR
+      2. Remocao de borda preta
+      3. Resize com padding (letterboxing)
+      4. Mascara circular (opcional)
+      5. CLAHE ou canal verde (opcional, mutuamente exclusivos)
+      6. Subtracao gaussiana de fundo (opcional)
+      7. Normalizacao ImageNet e conversao para tensor PyTorch
+
     Args:
-        image_input: PIL.Image, numpy array (BGR) ou path (str)
-        target_size: tamanho alvo (padrão 224 para ResNet)
-        use_clahe: aplica CLAHE
-        use_gaussian: aplica subtração Gaussiana de fundo
-        use_green_channel: usa apenas canal verde
-        use_circular_mask: aplica máscara circular
-        return_stages: se True, retorna dict com cada etapa (para visualização)
-    
+        image_input      : PIL.Image, np.ndarray (BGR) ou caminho (str)
+        target_size      : tamanho de saida quadrado (224 para ResNet)
+        use_clahe        : aplica melhoria de contraste local
+        use_gaussian     : aplica subtracao de fundo gaussiana
+        gaussian_strength: intensidade da subtracao (0.0 a 1.0)
+        use_green_channel: usa canal verde no lugar do CLAHE
+        use_circular_mask: aplica mascara circular
+        return_stages    : se True, retorna tambem um dict com cada etapa
+
     Returns:
-        tensor PyTorch shape (1, 3, target_size, target_size) normalizado
-        (e dict de etapas se return_stages=True)
+        tensor PyTorch (1, 3, H, W) normalizado
+        (e dict de etapas intermediarias se return_stages=True)
     """
     stages = {}
-    
-    # ── Etapa 0: Leitura ──────────────────────────────────────
+
+    # --- Leitura ---
     if isinstance(image_input, str):
         img = cv2.imread(image_input)
     elif isinstance(image_input, Image.Image):
         img = cv2.cvtColor(np.array(image_input), cv2.COLOR_RGB2BGR)
     elif isinstance(image_input, np.ndarray):
         img = image_input.copy()
-        if img.shape[2] == 3 and img[0, 0, 0] != img[0, 0, 2]:
-            pass  # assume BGR
     else:
         raise ValueError("image_input deve ser str, PIL.Image ou np.ndarray")
-    
+
     if return_stages:
         stages["0_original"] = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    # ── Etapa 1: Remove borda preta ───────────────────────────
+
+    # --- Etapa 1: remove borda preta ---
     img = remove_black_border(img)
     if return_stages:
         stages["1_sem_borda"] = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    # ── Etapa 2: Resize com padding ───────────────────────────
+
+    # --- Etapa 2: resize sem distorcao ---
     img = resize_with_padding(img, target_size)
     if return_stages:
         stages["2_resize"] = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    # ── Etapa 3: Máscara circular ─────────────────────────────
+
+    # --- Etapa 3: isola regiao circular da retina ---
     if use_circular_mask:
-        img = circular_crop(img)
+        img = apply_circular_mask(img)
         if return_stages:
             stages["3_mascara_circular"] = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    # ── Etapa 4: Melhorias de contraste ───────────────────────
+
+    # --- Etapa 4: melhoria de contraste ---
     if use_green_channel:
-        img = green_channel_extraction(img)
+        img = extract_green_channel(img)
         if return_stages:
             stages["4_canal_verde"] = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     else:
         if use_clahe:
-            img = clahe_enhancement(img)
+            img = apply_clahe(img)
             if return_stages:
                 stages["4a_clahe"] = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
+
         if use_gaussian:
-            img = gaussian_preprocessing(img)
+            img = apply_gaussian_background_subtraction(
+                img, sigma=30, strength=gaussian_strength)
             if return_stages:
                 stages["4b_gaussian"] = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    # ── Etapa 5: Normalização para tensor PyTorch ─────────────
-    # Converte BGR → RGB (PyTorch/torchvision usa RGB)
+
+    # --- Etapa 5: normalizacao para tensor PyTorch ---
+    # Converte BGR para RGB (torchvision usa RGB)
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    # Transformação padrão ImageNet (exigida pelos modelos pré-treinados)
+
+    # Media e desvio padrao do ImageNet, exigidos pelo modelo pre-treinado
     transform = transforms.Compose([
-        transforms.ToTensor(),                          # [0,255] → [0,1]  shape: (3, H, W)
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],                # médias do ImageNet
-            std=[0.229, 0.224, 0.225]                  # desvios do ImageNet
-        )
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
     ])
-    
-    tensor = transform(img_rgb).unsqueeze(0)  # adiciona batch dim: (1, 3, H, W)
-    
+
+    tensor = transform(img_rgb).unsqueeze(0)
+
     if return_stages:
         stages["5_final_rgb"] = img_rgb
         return tensor, stages
-    
+
     return tensor
 
 
-# ──────────────────────────────────────────────
-# 3. DATA AUGMENTATION (para treino)
-# ──────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Transforms de augmentation para o loop de treino
+# ---------------------------------------------------------------------------
 
 def get_train_transforms(target_size: int = 224) -> transforms.Compose:
     """
-    Transformações de data augmentation para o conjunto de treino.
-    
-    Técnicas aplicadas:
-    - Flip horizontal/vertical: a retina pode estar em qualquer orientação
-    - Rotação aleatória: invariância à rotação do olho
-    - Ajuste de brilho/contraste: simula diferentes condições de captura
-    - ColorJitter: variações de câmera e iluminação
-    
-    O augmentation é fundamental pois datasets médicos são pequenos.
+    Augmentation aplicado durante o treino.
+
+    Datasets medicos sao pequenos. Flips e rotacoes simulam diferentes
+    orientacoes de captura (a retina pode ser fotografada em qualquer angulo).
+    ColorJitter simula variacoes entre diferentes cameras e condicoes de luz.
     """
     return transforms.Compose([
         transforms.Resize((target_size, target_size)),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomVerticalFlip(p=0.5),
         transforms.RandomRotation(degrees=30),
-        transforms.ColorJitter(
-            brightness=0.2,
-            contrast=0.2,
-            saturation=0.1,
-            hue=0.05
-        ),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2,
+                               saturation=0.1, hue=0.05),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -344,7 +317,7 @@ def get_train_transforms(target_size: int = 224) -> transforms.Compose:
 
 def get_val_transforms(target_size: int = 224) -> transforms.Compose:
     """
-    Transformações para validação/teste (sem augmentation).
+    Transforms de validacao e teste (sem augmentation).
     """
     return transforms.Compose([
         transforms.Resize((target_size, target_size)),
