@@ -237,5 +237,10 @@ diagnostico medico real. Sempre consulte um especialista qualificado.
 
 * SELVARAJU, R. R. et al. Grad-CAM: Visual Explanations from Deep Networks via Gradient-Based Localization. *2017 IEEE International Conference on Computer Vision (ICCV)*, p. 618–626, out. 2017.
 * PYTORCH CONTRIBUTORS. *PyTorch documentation*. Disponível em: <https://docs.pytorch.org/docs/stable/index.html?_gl=1>.
+* STREAMLIT. *Streamlit Docs*. Disponível em: <https://docs.streamlit.io/>.
+* OPENCV. *OpenCV library*. Disponível em: <https://opencv.org/>.
 
+‌
+
+‌
 ‌
