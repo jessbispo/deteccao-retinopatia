@@ -230,3 +230,9 @@ Imagem de Retina
 
 Este projeto e de natureza academica e nao deve ser usado para
 diagnostico medico real. Sempre consulte um especialista qualificado.
+
+---
+
+## Referências
+
+SELVARAJU, R. R. et al. Grad-CAM: Visual Explanations from Deep Networks via Gradient-Based Localization. 2017 IEEE International Conference on Computer Vision (ICCV), p. 618–626, out. 2017.
