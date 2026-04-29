@@ -110,7 +110,7 @@ data/processed/
     └── retinopatia/
 ```
 
-### 3. Treinar o modelo
+### 3. Treinar o modelo *(Opcional)*
 
 ```bash
 python src/train.py --data_dir ./data/processed --epochs 20 --batch_size 16
