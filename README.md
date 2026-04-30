@@ -138,6 +138,37 @@ clinicamente pois o modelo nao foi ajustado para retina.
 
 ---
 
+## Build
+
+Para gerar um executável binário portátil que contenha todas as dependências e o modelo embutido, utilize os scripts na pasta `packaging/`.
+
+### 1. Gerar Executável (Linux)
+
+O script de build automatiza a criação de um ambiente limpo, instala apenas as dependências necessárias (versão CPU do PyTorch para otimização de tamanho) e gera o binário final.
+
+```bash
+cd packaging
+chmod +x build.sh
+./build.sh
+```
+
+### 2. Gerar Executável (Windows)
+
+No Windows (PowerShell), use o script correspondente:
+
+```powershell
+cd packaging
+.\build.ps1
+```
+
+**O que os scripts fazem:**
+- Criam um ambiente virtual temporário (`build_venv`).
+- Instalam o **PyTorch (CPU-only)**, reduzindo o tamanho do executável de ~2.7GB para **~410MB**.
+- Empacotam o código `src/`, o arquivo `modelo_retina.pth` e o bootstrap `run_main.py` em um único arquivo.
+- O executável final será gerado em `packaging/dist/`.
+
+---
+
 ## Fluxo do Sistema
 
 ```

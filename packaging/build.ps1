@@ -1,19 +1,21 @@
 # Build script for Windows (PowerShell)
 
-# Cleanup previous builds
 if (Test-Path build) { Remove-Item -Recurse -Force build }
 if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+if (Test-Path build_venv) { Remove-Item -Recurse -Force build_venv }
 
-# Activate virtual environment if it exists
-if (Test-Path ..\.venv\Scripts\Activate.ps1) {
-    & ..\.venv\Scripts\Activate.ps1
-}
+Write-Host "Creating dedicated build environment..."
+python -m venv build_venv
+& .\build_venv\Scripts\Activate.ps1
 
-# Install dependencies if not present
-pip install pyinstaller opencv-python-headless torchvision
+python -m pip install --upgrade pip
 
-# Run PyInstaller
-pyinstaller --onefile `
+pip install pyinstaller streamlit opencv-python-headless Pillow numpy matplotlib
+
+# Install CPU-only PyTorch
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+pyinstaller --onefile --noconfirm `
     --name "deteccao-retinopatia" `
     --additional-hooks-dir=./hooks `
     --workpath ./build `
@@ -23,6 +25,8 @@ pyinstaller --onefile `
     --hiddenimport streamlit `
     --hiddenimport cv2 `
     --hiddenimport torchvision `
+    --exclude-module tkinter `
+    --noupx `
     --clean `
     run_main.py
 
