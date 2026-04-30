@@ -2,10 +2,10 @@
 
 **Universidade Presbiteriana Mackenzie - Computação Visual**
 
-- Bruna Aguiar Muchiuti
-- Gabriel Ken Kazama Geronazzo
-- Jessica dos Santos Santana Bispo
-- Lucas Pires de Camargo Sarai
+- Bruna Aguiar Muchiuti - 10418358
+- Gabriel Ken Kazama Geronazzo - 10418247
+- Jessica dos Santos Santana Bispo - 10410798
+- Lucas Pires de Camargo Sarai - 10418013
 
 ---
 
