@@ -76,7 +76,24 @@ retinopatia-deteccao/
 
 ---
 
-## Como Executar
+## Como Executar (Usuário)
+
+1. Baixe o arquivo `deteccao-retinopatia` do [último release](https://github.com/jessbispo/deteccao-retinopatia/releases/tag/v1.0.0) do projeto.
+
+2. Mova o arquivo para a pasta onde deseja executar o projeto.
+
+3. Dê permissão de execução:
+```bash
+chmod +x deteccao-retinopatia
+```
+
+4. Execute o arquivo:
+
+```bash
+./deteccao-retinopatia
+```
+
+## Como Executar (Desenvolvimento)
 
 ### 1. Instalar dependencias
 
