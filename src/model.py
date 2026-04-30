@@ -1,8 +1,7 @@
 """
 model.py
-========
-Definição do modelo de classificação de retinopatia diabética.
-Usa ResNet18 pré-treinado com fine-tuning para classificação binária.
+Definicao, carregamento e utilitarios do modelo ResNet18 para
+classificacao binaria de retinopatia diabetica.
 """
 
 import torch
@@ -11,92 +10,76 @@ from torchvision import models
 import os
 
 
-# ──────────────────────────────────────────────
-# 1. ARQUITETURA DO MODELO
-# ──────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Arquitetura
+# ---------------------------------------------------------------------------
 
 class RetinopatiaModel(nn.Module):
     """
-    Classificador binário de retinopatia diabética baseado em ResNet18.
-    
-    Estratégia de fine-tuning:
-    - As camadas convolucionais iniciais (layer1, layer2) são CONGELADAS
-      pois capturam features genéricas (bordas, texturas) que já são úteis.
-    - As camadas finais (layer3, layer4, fc) são TREINÁVEIS
-      pois precisam aprender features específicas de retina.
-    - A camada fully-connected final é substituída por um classificador
-      binário com dropout para regularização.
-    
-    Saída: logit único (usa BCEWithLogitsLoss no treino)
+    Classificador binario de retinopatia baseado em ResNet18 pre-treinada.
+
+    Estrategia de fine-tuning em duas fases:
+      - Fase 1: backbone congelado, apenas o classificador e treinado.
+        Isso estabiliza o aprendizado inicial sem destruir os pesos do ImageNet.
+      - Fase 2 (metade do treino): backbone descongelado com lr reduzido,
+        permitindo ajuste fino das features para o dominio de retina.
+
+    A camada FC original (1000 classes ImageNet) e substituida por um
+    classificador binario com dropout para regularizacao.
     """
-    
+
     def __init__(self, pretrained: bool = True, freeze_backbone: bool = True):
         super(RetinopatiaModel, self).__init__()
-        
-        # Carrega ResNet18 pré-treinada no ImageNet
+
         weights = models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
         backbone = models.resnet18(weights=weights)
-        
-        # ── Congelar camadas iniciais ──────────────────────────
+
+        # Congela as camadas iniciais: capturam bordas e texturas genericas
+        # que ja sao uteis e nao precisam ser re-aprendidas
         if freeze_backbone:
-            # Congela conv1, bn1, layer1 e layer2
-            layers_to_freeze = [backbone.conv1, backbone.bn1,
-                                 backbone.layer1, backbone.layer2]
-            for layer in layers_to_freeze:
+            for layer in [backbone.conv1, backbone.bn1,
+                          backbone.layer1, backbone.layer2]:
                 for param in layer.parameters():
                     param.requires_grad = False
-        
-        # ── Extrair o backbone (tudo exceto o classificador final) ──
+
+        # Extrai o backbone completo exceto o classificador original
         self.features = nn.Sequential(
-            backbone.conv1,    # 7x7 conv, stride 2
+            backbone.conv1,
             backbone.bn1,
             backbone.relu,
-            backbone.maxpool,  # stride 2 → 56x56
+            backbone.maxpool,
             backbone.layer1,   # 64 canais
             backbone.layer2,   # 128 canais
             backbone.layer3,   # 256 canais
             backbone.layer4,   # 512 canais
         )
-        
-        self.avgpool = backbone.avgpool  # Global Average Pooling → (512,)
-        
-        # ── Novo classificador binário ─────────────────────────
-        # Substitui o FC original (1000 classes ImageNet) por classificação binária
-        in_features = backbone.fc.in_features  # 512 para ResNet18
+
+        self.avgpool = backbone.avgpool
+
+        # Classificador binario com dropout para reduzir overfitting
+        in_features = backbone.fc.in_features  # 512 na ResNet18
         self.classifier = nn.Sequential(
-            nn.Dropout(p=0.5),              # regularização
-            nn.Linear(in_features, 256),    # camada intermediária
+            nn.Dropout(p=0.5),
+            nn.Linear(in_features, 256),
             nn.ReLU(),
             nn.Dropout(p=0.3),
-            nn.Linear(256, 1)               # saída binária (logit)
+            nn.Linear(256, 1)   # saida unica: logit de retinopatia
         )
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass.
-        Args:
-            x: tensor (batch, 3, 224, 224)
-        Returns:
-            logits: tensor (batch, 1) — sem sigmoid (aplicada no loss/predict)
-        """
-        x = self.features(x)          # (batch, 512, 7, 7)
-        x = self.avgpool(x)            # (batch, 512, 1, 1)
-        x = torch.flatten(x, 1)        # (batch, 512)
-        x = self.classifier(x)         # (batch, 1)
+        x = self.features(x)       # (batch, 512, 7, 7)
+        x = self.avgpool(x)        # (batch, 512, 1, 1)
+        x = torch.flatten(x, 1)   # (batch, 512)
+        x = self.classifier(x)    # (batch, 1)
         return x
-    
+
     def predict_proba(self, x: torch.Tensor) -> torch.Tensor:
-        """Retorna probabilidade (0-1) de retinopatia."""
+        """Retorna probabilidade de retinopatia entre 0 e 1."""
         with torch.no_grad():
-            logits = self.forward(x)
-            return torch.sigmoid(logits)
-    
+            return torch.sigmoid(self.forward(x))
+
     def predict(self, x: torch.Tensor, threshold: float = 0.5) -> dict:
-        """
-        Retorna predição com label e confiança.
-        Returns:
-            dict com 'label', 'probability', 'confidence'
-        """
+        """Retorna label, probabilidade e confianca para uma imagem."""
         prob = self.predict_proba(x).item()
         label = "Retinopatia Detectada" if prob >= threshold else "Normal"
         confidence = prob if prob >= threshold else 1 - prob
@@ -106,90 +89,89 @@ class RetinopatiaModel(nn.Module):
             "confidence": confidence,
             "has_dr": prob >= threshold
         }
-    
+
     def get_trainable_params(self) -> int:
-        """Conta parâmetros treináveis."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
-    
+
     def get_total_params(self) -> int:
-        """Conta total de parâmetros."""
         return sum(p.numel() for p in self.parameters())
 
 
-# ──────────────────────────────────────────────
-# 2. FUNÇÕES UTILITÁRIAS
-# ──────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Carregamento
+# ---------------------------------------------------------------------------
 
 def load_model(checkpoint_path: str = None,
-               device: str = None) -> RetinopatiaModel:
+               device: str = None):
     """
-    Carrega o modelo. Se checkpoint_path fornecido, carrega pesos salvos.
-    Caso contrário, retorna modelo com pesos ImageNet (para fine-tuning).
-    
+    Carrega o modelo. Se um checkpoint for fornecido, restaura os pesos
+    salvos. Caso contrario, usa os pesos pre-treinados do ImageNet.
+
     Args:
-        checkpoint_path: caminho para arquivo .pth salvo
-        device: 'cuda', 'mps' ou 'cpu' (auto-detectado se None)
-    Returns:
-        modelo carregado e em modo eval
+        checkpoint_path: caminho para o arquivo .pth salvo durante o treino
+        device         : 'cuda', 'mps' ou 'cpu' (auto-detectado se None)
     """
     if device is None:
         if torch.cuda.is_available():
             device = "cuda"
         elif torch.backends.mps.is_available():
-            device = "mps"  # Apple Silicon
+            device = "mps"
         else:
             device = "cpu"
-    
+
     model = RetinopatiaModel(pretrained=(checkpoint_path is None))
-    
+
     if checkpoint_path and os.path.exists(checkpoint_path):
-        checkpoint = torch.load(
-            checkpoint_path,
-            map_location=device,
-            weights_only=False
-        )
-        # Suporta tanto state_dict direto quanto checkpoint completo
+        checkpoint = torch.load(checkpoint_path, map_location=device,
+                                weights_only=False)
         if "model_state_dict" in checkpoint:
             model.load_state_dict(checkpoint["model_state_dict"])
-            print(f"✓ Modelo carregado do checkpoint: {checkpoint_path}")
+            print(f"Modelo carregado: {checkpoint_path}")
             if "epoch" in checkpoint:
-                print(f"  → Epoch: {checkpoint['epoch']}, "
-                      f"Val Acc: {checkpoint.get('val_acc', 'N/A'):.4f}")
+                print(f"  Epoch: {checkpoint['epoch']} | "
+                      f"Val Acc: {checkpoint.get('val_acc', 0):.4f}")
         else:
             model.load_state_dict(checkpoint)
-            print(f"✓ Modelo carregado: {checkpoint_path}")
+            print(f"Modelo carregado: {checkpoint_path}")
     else:
-        print("ℹ Usando pesos pré-treinados do ImageNet (sem fine-tuning de retina)")
-    
+        print("Usando pesos ImageNet (sem fine-tuning de retina)")
+
     model = model.to(device)
     model.eval()
     return model, device
 
 
+# ---------------------------------------------------------------------------
+# Loss e otimizador
+# ---------------------------------------------------------------------------
+
 def get_loss_function():
     """
-    BCEWithLogitsLoss com pos_weight para lidar com desbalanceamento de classes.
-    
-    Datasets de retinopatia são tipicamente desbalanceados (mais casos normais).
-    pos_weight > 1 aumenta o peso dos casos positivos (retinopatia).
-    Ajuste pos_weight = (n_negativos / n_positivos) do seu dataset.
+    BCEWithLogitsLoss com pos_weight para lidar com desbalanceamento.
+
+    Datasets de retinopatia tem mais casos normais do que positivos.
+    pos_weight = (n_normal / n_retinopatia) aumenta a penalidade por
+    errar casos de retinopatia, forcando o modelo a aprende-los.
+    O valor correto e calculado automaticamente no train.py.
     """
-    # Exemplo: se dataset tem 70% normal e 30% retinopatia → pos_weight ≈ 2.3
     pos_weight = torch.tensor([2.3])
     return nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
 
 def get_optimizer(model: RetinopatiaModel, lr: float = 1e-4):
     """
-    AdamW com learning rates diferentes para backbone e classifier.
-    O backbone (pré-treinado) recebe lr menor para não perder features úteis.
+    AdamW com learning rates diferentes para backbone e classificador.
+
+    O backbone ja tem bons pesos do ImageNet, entao recebe lr/10 para
+    nao perder essas features. O classificador, treinado do zero, recebe
+    o lr completo para aprender mais rapido.
     """
     backbone_params = [p for n, p in model.named_parameters()
                        if "classifier" not in n and p.requires_grad]
     classifier_params = [p for n, p in model.named_parameters()
                          if "classifier" in n]
-    
+
     return torch.optim.AdamW([
-        {"params": backbone_params, "lr": lr * 0.1},   # backbone: lr/10
-        {"params": classifier_params, "lr": lr}         # classifier: lr normal
+        {"params": backbone_params,    "lr": lr * 0.1},
+        {"params": classifier_params,  "lr": lr}
     ], weight_decay=1e-4)

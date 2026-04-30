@@ -1,70 +1,75 @@
-# Classificação de Retinopatia Diabética com Visualização Explicável
+# Classificacao de Retinopatia Diabetica com Visualizacao Explicavel
 
-**Universidade Presbiteriana Mackenzie — Computação Visual**
+**Universidade Presbiteriana Mackenzie - Computação Visual**
 
-- Bruna Aguiar Muchiuti 
-- Gabriel Ken Kazama Geronazzo 
-- Jessica dos Santos Santana Bispo 
+- Bruna Aguiar Muchiuti
+- Gabriel Ken Kazama Geronazzo
+- Jessica dos Santos Santana Bispo
 - Lucas Pires de Camargo Sarai
 
 ---
 
-## Sobre
+## Sobre o Projeto
 
-Aplicação de visão computacional para classificação binária de retinopatia diabética em imagens de retina (fundoscopia), com visualização explicável via Grad-CAM.
+Aplicacao de visão computacional para classificacao binaria de retinopatia
+diabetica em imagens de retina (fundoscopia), com visualizacao explicavel
+via Grad-CAM.
+
+O diagnóstico de retinopatia depende de especialistas analisando imagens
+fundoscopicas, processo demorado e dependente de disponibilidade clinica.
+Este projeto automatiza parte desse processo usando uma CNN pre-treinada
+com fine-tuning no dominio de retina.
 
 ---
 
-## Técnicas de Computação Visual
+## Tecnicas de Computacao Visual
 
-### Pré-processamento (`preprocessing.py`)
+### Pre-processamento (`preprocessing.py`)
 
-| Técnica | Função | Por que usamos |
+| Tecnica | Funcao | Por que usamos |
 |---|---|---|
-| **Thresholding + BBox** | `remove_black_border()` | Remove borda preta circular típica de fundoscopia |
-| **Letterboxing** | `resize_with_padding()` | Redimensiona sem distorção geométrica |
-| **Máscara Circular** | `circular_crop()` | Foca apenas na ROI diagnóstica |
-| **CLAHE** | `clahe_enhancement()` | Realça microaneurismas e exsudatos localmente |
-| **Gaussian BG Subtraction** | `gaussian_preprocessing()` | Remove iluminação não uniforme (Ben Graham's method) |
-| **Canal Verde** | `green_channel_extraction()` | Máximo contraste para vasos sanguíneos |
+| Thresholding + BBox | `remove_black_border` | Remove borda preta circular tipica de fundoscopia |
+| Letterboxing | `resize_with_padding` | Redimensiona sem distorcer estruturas circulares |
+| Mascara Circular | `apply_circular_mask` | Foca o modelo na regiao de interesse diagnostico |
+| CLAHE | `apply_clahe` | Realca microaneurismas e exsudatos localmente |
+| Subtracao Gaussiana | `apply_gaussian_background_subtraction` | Remove iluminacao nao uniforme entre cameras |
+| Canal Verde | `extract_green_channel` | Maximo contraste para vasos sanguineos |
 
 ### Modelo (`model.py`)
-- **ResNet18** pré-treinada no ImageNet com fine-tuning
-- Camadas iniciais congeladas (features genéricas)
-- Camadas finais treináveis (features de retina)
-- Fine-tuning progressivo: descongelamento na metade do treino
+
+- ResNet18 pre-treinada no ImageNet com fine-tuning em duas fases
+- Fase 1: backbone congelado, apenas o classificador e treinado
+- Fase 2 (metade do treino): backbone descongelado com lr reduzido
+- Classificador binario substituindo o FC original do ImageNet
 
 ### Explicabilidade (`gradcam.py`)
-- **Grad-CAM**: calcula gradientes da saída em relação aos feature maps da última camada convolucional
-- Gera heatmap que mostra as regiões determinantes para o diagnóstico
+
+- Grad-CAM (Selvaraju et al., 2017)
+- Calcula gradientes da saida em relacao aos feature maps da ultima camada convolucional
+- Gera heatmap mostrando as regioes determinantes para o diagnostico
 
 ---
 
 ## Estrutura do Projeto
 
 ```
-
-├───data
-│   ├───processed
-│   │   ├───train
-│   │   │   ├───normal
-│   │   │   └───retinopatia
-│   │   └───val
-│   │       ├───normal
-│   │       └───retinopatia
-│   └───raw
-│       ├───test_images
-│       │   └───test_images
-│       ├───train_images
-│       │   └───train_images
-│       └───val_images
-│           └───val_images
-├───src
-│   ├───app.py # Interface Streamlit
-│   ├───model.py # Modelo ResNet18
-│   ├───preprocessing.py # Pipeline de pré-processamento (CV)
-│   ├───gradcam.py  # Visualização Grad-CAM
-│   ├───train.py 
+retinopatia-deteccao/
+├── data/
+│   ├── processed/
+│      ├── train/
+│      │   ├── normal/
+│      │   └── retinopatia/
+│      └── val/
+│          ├── normal/
+│          └── retinopatia/
+│   
+├── src/
+│   ├── app.py              # Interface Streamlit
+│   ├── model.py            # Arquitetura ResNet18 e utilitarios
+│   ├── preprocessing.py    # Pipeline de pre-processamento
+│   ├── gradcam.py          # Visualizacao Grad-CAM
+│   └── train.py            # Script de fine-tuning
+├── modelo_retina.pth       # Pesos salvos (gerado apos o treino)
 ├── requirements.txt
 └── README.md
 ```
@@ -73,53 +78,53 @@ Aplicação de visão computacional para classificação binária de retinopatia
 
 ## Como Executar
 
-### 1. Instalar dependências
+### 1. Instalar dependencias
 
+**Criar ambiente virtual para dependências não ficarem fixas na máquina:**
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv;
+source .venv/bin/activate
 ```
+**Baixar as dependências dentro do ambiente virtual:**
+```bash
+python3 -m pip install -r requirements.txt
+```
+
 
 ### 2. Preparar o dataset
 
-1. Baixe o dataset [APTOS 2019](https://www.kaggle.com/competitions/aptos2019-blindness-detection) e descompacte-o na pasta `data/raw` (você precisará criar essa pasta).
+O projeto usa o dataset **APTOS 2019** disponivel no Kaggle:
+https://www.kaggle.com/competitions/aptos2019-blindness-detection
 
-> Para o APTOS: `diagnosis == 0` → `normal/`, `diagnosis >= 1` → `retinopatia/`
+Apos baixar, organize as imagens conforme abaixo.
+Imagens com `diagnosis == 0` vao para `normal/`,
+imagens com `diagnosis >= 1` vao para `retinopatia/`.
 
-2. Execute o script de preparação para organizar as imagens brutas na estrutura necessária:
+```
+data/processed/
+├── train/
+│   ├── normal/
+│   └── retinopatia/
+└── val/
+    ├── normal/
+    └── retinopatia/
+```
+
+### 3. Treinar o modelo *(Opcional)*
 
 ```bash
-python src/prepare_data.py --csv_path data/raw/train.csv --image_dir data/raw/train_images --output_dir data/processed --train_split 0.8
+python src/train.py --data_dir ./data/processed --epochs 20 --batch_size 16
 ```
 
-3. A estrutura será gerada conforme abaixo:
+Parametros disponiveis:
 
-```
-
-├───data
-│   ├───processed
-│   │   ├───train
-│   │   │   ├───normal # imagens sem retinopatia (label 0)
-│   │   │   └───retinopatia # imagens com retinopatia (label 1)
-│   │   └───val
-│   │       ├───normal
-│   │       └───retinopatia
-
-```
-
-### 3. Treinar o modelo
-
-```bash
-python src/train.py --data_dir ./data/processed --epochs 20 --batch_size 32
-```
-
-Parâmetros disponíveis:
-```
---data_dir        Diretório do dataset (padrão: ./dataset)
---epochs          Número de épocas (padrão: 20)
---batch_size      Tamanho do batch (padrão: 32)
---lr              Learning rate (padrão: 1e-4)
---save_path       Onde salvar o modelo (padrão: modelo_retina.pth)
-```
+| Parametro | Padrao | Descricao |
+|---|---|---|
+| `--data_dir` | `./data/processed` | Diretorio do dataset |
+| `--epochs` | `20` | Numero de epocas |
+| `--batch_size` | `16` | Tamanho do batch |
+| `--lr` | `1e-4` | Learning rate inicial |
+| `--save_path` | `modelo_retina.pth` | Caminho para salvar o modelo |
 
 ### 4. Executar a interface
 
@@ -127,49 +132,9 @@ Parâmetros disponíveis:
 streamlit run src/app.py
 ```
 
-> Se não houver `modelo_retina.pth`, a aplicação usa os pesos pré-treinados do ImageNet (sem fine-tuning de retina — resultados não confiáveis clinicamente).
-
-### 5. Gerar Executável (Distribuição)
-
-> [!NOTE]
-> O suporte a geração do executável foi adicionado seguindo as intruções desta [discussão](https://discuss.streamlit.io/t/using-pyinstaller-or-similar-to-create-an-executable/902/127) no fórum da Streamlit.
-
-Você pode compilar o projeto em um único arquivo executável (binário) que inclui o modelo e todas as dependências.
-
-> [!IMPORTANT]
-> O processo de compilação é demorado e pode levar até 15 minutos, pois inclui bibliotecas pesadas como PyTorch e OpenCV.
-
-#### No Linux
-
-1. Dê permissão de execução ao script:
-   ```bash
-   chmod +x packaging/build.sh
-   ```
-2. Execute o build:
-   ```bash
-   ./packaging/build.sh
-   ```
-3. O binário será gerado em `packaging/dist/deteccao-retinopatia`.
-
-#### No Windows
-
-1. Abra o PowerShell na pasta raiz do projeto.
-2. Execute o script de build:
-   ```powershell
-   .\packaging\build.ps1
-   ```
-3. O executável será gerado em `packaging\dist\deteccao-retinopatia.exe`.
-
----
-
-## Tecnologias
-
-- **Python 3.10+**
-- **PyTorch** — modelo e treino
-- **torchvision** — ResNet18 pré-treinada
-- **OpenCV** — processamento de imagens (CLAHE, Gaussian, máscaras)
-- **Streamlit** — interface web
-- **NumPy / Matplotlib** — visualizações
+Se `modelo_retina.pth` nao existir, a aplicacao carrega os pesos
+pre-treinados do ImageNet. Nesse caso os resultados nao sao confiaveis
+clinicamente pois o modelo nao foi ajustado para retina.
 
 ---
 
@@ -213,6 +178,33 @@ Imagem de Retina
 
 ---
 
+## Tecnologias
+
+| Biblioteca | Uso |
+|---|---|
+| PyTorch | Modelo, treino e Grad-CAM |
+| torchvision | ResNet18 pre-treinada e transforms |
+| OpenCV | CLAHE, filtros gaussianos, mascaras |
+| Streamlit | Interface web |
+| NumPy / Matplotlib | Visualizacoes e manipulacao de arrays |
+
+---
+
 ## Aviso
 
-Esta aplicação é um projeto acadêmico e **não deve ser utilizada para diagnóstico médico real**. Sempre consulte um especialista qualificado.
+Este projeto e de natureza academica e nao deve ser usado para
+diagnostico medico real. Sempre consulte um especialista qualificado.
+
+---
+
+## Referências
+
+* SELVARAJU, R. R. et al. Grad-CAM: Visual Explanations from Deep Networks via Gradient-Based Localization. *2017 IEEE International Conference on Computer Vision (ICCV)*, p. 618–626, out. 2017.
+* PYTORCH CONTRIBUTORS. *PyTorch documentation*. Disponível em: <https://docs.pytorch.org/docs/stable/index.html?_gl=1>.
+* STREAMLIT. *Streamlit Docs*. Disponível em: <https://docs.streamlit.io/>.
+* OPENCV. *OpenCV library*. Disponível em: <https://opencv.org/>.
+
+‌
+
+‌
+‌
