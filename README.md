@@ -77,7 +77,7 @@ retinopatia-deteccao/
 ---
 
 ## Como Executar (Usuário)
-
+### OBS: O executável disponibilizado da aplicação é compatível apenas com Linux
 1. Baixe o arquivo `deteccao-retinopatia` do [último release](https://github.com/jessbispo/deteccao-retinopatia/releases/tag/v1.0.0) do projeto.
 
 2. Mova o arquivo para a pasta onde deseja executar o projeto.
