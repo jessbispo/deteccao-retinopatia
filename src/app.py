@@ -59,6 +59,7 @@ def get_model():
     model, device = load_model(
         checkpoint_path=checkpoint if os.path.exists(checkpoint) else None
     )
+    return model, device
 
 
 # ---------------------------------------------------------------------------
