@@ -18,6 +18,16 @@ from PIL import Image
 from preprocessing import preprocess_retina_image
 from model import load_model
 from gradcam import GradCAM
+import sys
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 
 # ---------------------------------------------------------------------------
@@ -44,8 +54,9 @@ st.divider()
 
 @st.cache_resource
 def get_model():
-    checkpoint = "modelo_retina.pth"
-    return load_model(
+    """Carrega o modelo uma única vez e mantém em cache."""
+    checkpoint = resource_path("modelo_retina.pth")
+    model, device = load_model(
         checkpoint_path=checkpoint if os.path.exists(checkpoint) else None
     )
 
