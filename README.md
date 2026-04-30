@@ -1,6 +1,6 @@
 # Classificacao de Retinopatia Diabetica com Visualizacao Explicavel
 
-**Universidade Presbiteriana Mackenzie - Computacao Visual**
+**Universidade Presbiteriana Mackenzie - Computação Visual**
 
 - Bruna Aguiar Muchiuti
 - Gabriel Ken Kazama Geronazzo
@@ -11,11 +11,11 @@
 
 ## Sobre o Projeto
 
-Aplicacao de visao computacional para classificacao binaria de retinopatia
+Aplicacao de visão computacional para classificacao binaria de retinopatia
 diabetica em imagens de retina (fundoscopia), com visualizacao explicavel
 via Grad-CAM.
 
-O diagnostico de retinopatia depende de especialistas analisando imagens
+O diagnóstico de retinopatia depende de especialistas analisando imagens
 fundoscopicas, processo demorado e dependente de disponibilidade clinica.
 Este projeto automatiza parte desse processo usando uma CNN pre-treinada
 com fine-tuning no dominio de retina.
@@ -158,9 +158,9 @@ Imagem de Retina (fundoscopia)
          v
 +------------------------------------------+
 |          ResNet18 (Fine-tuned)           |
-|  conv1, layer1, layer2  (congelados)    |
-|  layer3, layer4, FC     (treinaveis)    |
-|  saida: logit -> sigmoid -> prob [0,1]  |
+|  conv1, layer1, layer2  (congelados)     |
+|  layer3, layer4, FC     (treinaveis)     |
+|  saida: logit -> sigmoid -> prob [0,1]   |
 +------------------------------------------+
          |
          v
